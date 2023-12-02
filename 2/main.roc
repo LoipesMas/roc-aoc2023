@@ -4,18 +4,14 @@ app "file-read"
         pf.Stdout,
         pf.Stderr,
         pf.Task.{ Task, await },
-        pf.File,
-        pf.Path,
+        "./input" as input: Str,
     ]
     provides [main] to pf
 
 main =
-    fileName = "input"
-    path = Path.fromStr fileName
+    lines = Str.split input "\n" |> List.dropIf Str.isEmpty
+    gamesR = List.mapTry lines parseLine
     task =
-        contents <- File.readUtf8 path |> await
-        lines = Str.split contents "\n" |> List.dropIf Str.isEmpty
-        gamesR = List.mapTry lines parseLine
         # part 1
         # when gamesR is
         #    Ok games ->
