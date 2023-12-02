@@ -17,8 +17,8 @@ main =
         lines = Str.split contents "\n" |> List.dropIf Str.isEmpty
         gamesR = List.mapTry lines parseLine
         # part 1
-        #when gamesR is
-        #    Ok games -> 
+        # when gamesR is
+        #    Ok games ->
         #        possibleGames = List.keepIf games checkGame
         #        sum = List.map possibleGames (\g -> g.gameNumber ) |> List.mapTry Str.toU32 |> Result.map List.sum
         #        when sum is
@@ -30,7 +30,7 @@ main =
             Ok games ->
                 minCubeCountPowers = List.map games findMinCubeCountInGame |> List.map minCubeCountPower
                 List.sum minCubeCountPowers |> Num.toStr |> Stdout.line
-                
+
             Err _ -> Stdout.line "err"
 
     Task.attempt task \result ->
@@ -55,38 +55,37 @@ strMap = \s, l ->
 strDropFirst = \s, n ->
     strMap s (\l -> List.dropFirst l n)
 
-
-minCubeCountPower = \{red, green, blue} ->
+minCubeCountPower = \{ red, green, blue } ->
     red * green * blue
 
-findMinCubeCountInGame = \{reveals} ->
-    List.map reveals findMinCubeCountInReveal |> List.walk {red: 0, green: 0, blue: 0} foldMinCubeCount 
+findMinCubeCountInGame = \{ reveals } ->
+    List.map reveals findMinCubeCountInReveal |> List.walk { red: 0, green: 0, blue: 0 } foldMinCubeCount
 
 findMinCubeCountInReveal = \pairs ->
-    List.walk pairs {red: 0, green: 0, blue: 0} \state, {amount, color} ->
+    List.walk pairs { red: 0, green: 0, blue: 0 } \state, { amount, color } ->
         when color is
-            Red -> {state & red: Num.max state.red amount}
-            Green -> {state & green: Num.max state.green amount}
-            Blue -> {state & blue: Num.max state.blue amount}
+            Red -> { state & red: Num.max state.red amount }
+            Green -> { state & green: Num.max state.green amount }
+            Blue -> { state & blue: Num.max state.blue amount }
 
-foldMinCubeCount = \a, b ->
-    {
-        red: Num.max a.red b.red,
-        green: Num.max a.green b.green,
-        blue: Num.max a.blue b.blue,
-    }
+foldMinCubeCount = \a, b -> {
+    red: Num.max a.red b.red,
+    green: Num.max a.green b.green,
+    blue: Num.max a.blue b.blue,
+}
 
-checkGame = \{reveals} ->
+checkGame = \{ reveals } ->
     List.all reveals checkReveal
 
 checkReveal = \reveal ->
     List.all reveal checkPair
 
-checkPair = \{amount, color} ->
-    maxAmount = when color is
-        Red -> 12
-        Green -> 13
-        Blue -> 14
+checkPair = \{ amount, color } ->
+    maxAmount =
+        when color is
+            Red -> 12
+            Green -> 13
+            Blue -> 14
     amount <= maxAmount
 
 parseLine = \line ->

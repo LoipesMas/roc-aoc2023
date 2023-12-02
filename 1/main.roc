@@ -30,9 +30,10 @@ main =
         numbersRes = List.mapTry lines findNumbers
         when numbersRes is
             Ok numbers -> List.sum numbers |> Num.toStr |> Stdout.line |> await (\{} -> Task.ok (Ok {}))
-            Err e -> dbg e
-                Err "Failed to parse numbers" |> Task.ok
+            Err e -> 
+                dbg e
 
+                Err "Failed to parse numbers" |> Task.ok
 
     Task.attempt task \result ->
         when result is
@@ -48,34 +49,33 @@ main =
                         _ -> "Uh oh, there was an error!"
 
                 {} <- Stderr.line msg |> await
-                
+
                 Task.err 1 # 1 is an exit code to indicate failure
 
 strMap = \s, l ->
     Str.graphemes s |> l |> Str.joinWith ""
 
-strDropFirst = \s, n -> 
+strDropFirst = \s, n ->
     strMap s (\l -> List.dropFirst l n)
 
 hasNumber = \line -> \n ->
-    name <- List.get validNames n |> Result.try
+        name <- List.get validNames n |> Result.try
 
-    firstByte <- Str.toUtf8 line |> List.first |> Result.try Num.toNatChecked |> Result.try
-    if firstByte >= '0' && firstByte <= '9' then
-        Ok (firstByte - '1')
-    else if Str.startsWith line name then
-        Ok n
-    else
-        Err NotFound
-
+        firstByte <- Str.toUtf8 line |> List.first |> Result.try Num.toNatChecked |> Result.try
+        if firstByte >= '0' && firstByte <= '9' then
+            Ok (firstByte - '1')
+        else if Str.startsWith line name then
+            Ok n
+        else
+            Err NotFound
 
 findNumbers = \line ->
-    idxs = List.range {start: At 0, end: Before (Str.countGraphemes line)}
-    numIdxs = List.range {start: At 0, end: Before (List.len validNames)}
+    idxs = List.range { start: At 0, end: Before (Str.countGraphemes line) }
+    numIdxs = List.range { start: At 0, end: Before (List.len validNames) }
     foundNumbers = List.keepOks idxs \n ->
         s = strDropFirst line n
         List.keepOks numIdxs (hasNumber s) |> List.first
 
     first <- foundNumbers |> List.first |> Result.try
     last <- foundNumbers |> List.last |> Result.try
-    Ok (((first+1)*10) +last+1)
+    Ok (((first + 1) * 10) + last + 1)
