@@ -5,7 +5,7 @@ app "file-read"
         pf.Stderr,
         pf.Task.{ Task, await },
         "./input" as input : Str,
-        #"./test_input" as input : Str,
+        # "./test_input" as input : Str,
     ]
     provides [main] to pf
 
@@ -15,9 +15,16 @@ main =
         states = List.mapWithIndex lines \line, index ->
             parseLine0 line index
         state = List.walk states emptyState foldState
-        validNumbers = List.keepIf state.numbers (\n -> checkNumber n state.symbols)
-        validNumbersValues = List.map validNumbers (.value)
-        Stdout.line (Num.toStr (List.sum validNumbersValues))
+        # part 1
+        # validNumbers = List.keepIf state.numbers (\n -> checkNumber n state.symbols)
+        # validNumbersValues = List.map validNumbers (.value)
+        # Stdout.line (Num.toStr (List.sum validNumbersValues))
+        # part 2
+        potentialGears = List.keepIf state.symbols \{ type } -> type == Gear
+        answer =
+            List.map potentialGears \g -> gearPower g state.numbers
+            |> List.sum
+        Stdout.line (Num.toStr answer)
 
     Task.attempt task \result ->
         when result is
@@ -49,7 +56,7 @@ listTakeWhile = \list, f ->
         else
             Break state
 
-expect listTakeWhile [1,2,3,4,5] (\e -> e <= 3) == [1,2,3]
+expect listTakeWhile [1, 2, 3, 4, 5] (\e -> e <= 3) == [1, 2, 3]
 
 LineNum : Nat
 Range := { start : Nat, end : Nat } implements [Eq { isEq }]
@@ -79,21 +86,29 @@ expect inRange 3 (@Range { start: 1, end: 3 })
 expect inRange 4 (@Range { start: 1, end: 3 }) |> Bool.not
 
 Number : { value : Nat, span : Range, line : LineNum }
-Symbol : { x : Nat, y : LineNum }
+Symbol : { x : Nat, y : LineNum, type : [Gear, Other] }
 
 checkNumber : Number, List Symbol -> Bool
 checkNumber = \number, symbols ->
+    List.any symbols (\s -> checkSymbolNearNumber s number)
+
+checkSymbolNearNumber : Symbol, Number -> Bool
+checkSymbolNearNumber = \symbol, number ->
     xRange = expandRange number.span 1
     yRange = expandRange (@Range { start: number.line, end: number.line }) 1
-    List.any symbols (\s -> checkSymbolInRange s xRange yRange)
-
-checkSymbolInRange : Symbol, Range, Range -> Bool
-checkSymbolInRange = \symbol, xRange, yRange ->
     (inRange symbol.x xRange) && (inRange symbol.y yRange)
+
+gearPower : Symbol, List Number -> Nat
+gearPower = \symbol, numbers ->
+    nearNumbers = List.keepIf numbers (\n -> checkSymbolNearNumber symbol n)
+    if List.len nearNumbers == 2 then
+        List.map nearNumbers .value |> List.product
+    else
+        0
 
 State : { numbers : List Number, symbols : List Symbol }
 
-emptyState = {numbers: [], symbols: []}
+emptyState = { numbers: [], symbols: [] }
 
 foldState : State, State -> State
 foldState = \x, y -> {
@@ -111,6 +126,7 @@ parseLine : Str, Nat, LineNum -> State
 parseLine = \line, xPos, yPos ->
     graphemes = Str.graphemes line
     obj = listTakeWhile graphemes (\e -> e != ".")
+    firstGrapheme = List.first obj |> Result.withDefault ""
     mbyNumber = listTakeWhile obj (\e -> Str.contains notSymbols e) |> Str.joinWith ""
     if Str.isEmpty line then
         emptyState
@@ -118,18 +134,20 @@ parseLine = \line, xPos, yPos ->
         dotsLen = listTakeWhile graphemes (\e -> e == ".") |> List.len
         lineRest = strDropFirst line dotsLen
         parseLine lineRest (xPos + dotsLen) yPos
-    else if Bool.not (Str.contains notSymbols (List.first obj |> Result.withDefault "")) then
-        state = {emptyState & symbols: [{x: xPos, y: yPos}]}
+    else if Bool.not (Str.contains notSymbols firstGrapheme) then
+        type = if firstGrapheme == "*" then Gear else Other
+        state = { emptyState & symbols: [{ x: xPos, y: yPos, type }] }
         lineRest = strDropFirst line 1
         foldState state (parseLine lineRest (xPos + 1) yPos)
     else if Bool.not (Str.isEmpty mbyNumber) then
-        value = when Str.toNat mbyNumber is
-            Ok n -> n
-            Err _ -> crash "wtf"
+        value =
+            when Str.toNat mbyNumber is
+                Ok n -> n
+                Err _ -> crash "wtf"
         numLen = Str.countGraphemes mbyNumber
         spanEnd = xPos + numLen - 1
-        span = @Range {start: xPos, end: spanEnd }
-        state = {emptyState & numbers: [{value, span, line: yPos}]}
+        span = @Range { start: xPos, end: spanEnd }
+        state = { emptyState & numbers: [{ value, span, line: yPos }] }
         lineRest = strDropFirst line numLen
         foldState state (parseLine lineRest (xPos + numLen) yPos)
     else
