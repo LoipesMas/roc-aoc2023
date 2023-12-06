@@ -4,23 +4,21 @@ app "file-read"
         pf.Stdout,
         pf.Stderr,
         pf.Task.{ Task, await },
-        #"./input" as input : Str,
-        "./test_input" as input : Str,
+        "./input" as input : Str,
+        #"./test_input" as input : Str,
     ]
     provides [main] to pf
 
 main =
     lines = Str.split input "\n"
     task =
-        dbg part2 lines
-        Stdout.line "foo"
         #{} <- Stdout.line "part1:" |> Task.await
         #msg1 = part1 lines |> Result.map Num.toStr |> Result.withDefault "ERR"
         #{} <- Stdout.line msg1 |> Task.await
 
-        #{} <- Stdout.line "part2:" |> Task.await
-        #msg2 = part2 lines |> Result.map Num.toStr |> Result.withDefault "ERR"
-        #Stdout.line msg2
+        {} <- Stdout.line "part2:" |> Task.await
+        msg2 = part2 lines |> Result.map Num.toStr |> Result.withDefault "ERR"
+        Stdout.line msg2
 
     Task.attempt task \result ->
         when result is
@@ -52,7 +50,17 @@ part2 = \lines ->
     seedRanges = parseSeedRanges seedsStr
     mappingsStrs = List.dropFirst sections 1 |> List.map (\l -> List.dropFirst l 1)
     mappings = List.map mappingsStrs (\l -> List.map l parseMapping)
-    List.map seedRanges (\r -> mapRange r (\s -> chainConvert mappings s) |> List.min |> unwrap) |> List.min
+    reverseMappings = List.reverse mappings |> List.map (\m -> List.map m inverseMap)
+    locations = List.range {start: At 0, end: Length 39999999}
+    locationMby = List.walkUntil locations NotFound \state, loc ->
+        seed = chainConvert reverseMappings loc
+        if List.any seedRanges \r -> inRange r seed then
+            Break (Found loc)
+        else
+            Continue NotFound
+    when locationMby is
+        Found l -> Ok l
+        _ -> crash "whoops, not found"
 
 parseNumbers : Str -> List Nat
 parseNumbers = \numbersStr ->
@@ -68,6 +76,10 @@ expect
     r == [79,14,55,13]
 
 Range : {start: Nat, length: Nat}
+
+inRange : Range, Nat -> Bool
+inRange = \{start, length}, x ->
+    x >= start && x < start + length
 
 parseSeedRanges : Str -> List Range
 parseSeedRanges = \line ->
@@ -112,7 +124,7 @@ expect
 ## Tries a single mapping
 tryConvert : Map, Nat -> Result Nat [NotMapped]
 tryConvert = \{sourceStart, destinationStart, length}, number ->
-    if number >= sourceStart && number < sourceStart + length then
+    if inRange {start: sourceStart, length} number then
         Ok ((number - sourceStart) + destinationStart)
     else
         Err NotMapped
@@ -142,22 +154,22 @@ expect
     r = tryConvert m 100
     r == Err NotMapped
 
-inverseTryConvert: Map, Nat -> Result Nat [NotMapped]
-inverseTryConvert = \{sourceStart, destinationStart, length}, number ->
-    tryConvert {sourceStart: destinationStart, destinationStart: sourceStart, length} number
+inverseMap : Map -> Map
+inverseMap = \{sourceStart, destinationStart, length} ->
+    {sourceStart: destinationStart, destinationStart: sourceStart, length}
 
 expect
-    m = {sourceStart: 98, destinationStart: 50, length: 2}
-    r = inverseTryConvert m 50
+    m = inverseMap {sourceStart: 98, destinationStart: 50, length: 2}
+    r = tryConvert m 50
     r == Ok 98
 
 expect
-    m = {sourceStart: 98, destinationStart: 50, length: 2}
-    r = inverseTryConvert m 51
+    m = inverseMap {sourceStart: 98, destinationStart: 50, length: 2}
+    r = tryConvert m 51
     r == Ok 99
 
 expect
-    m = {sourceStart: 98, destinationStart: 50, length: 2}
+    m = inverseMap {sourceStart: 98, destinationStart: 50, length: 2}
     r = tryConvert m 52
     r == Err NotMapped
 
@@ -190,7 +202,9 @@ expect
 chainConvert : List (List Map), Nat -> Nat
 chainConvert = \mapss, number ->
     List.walk mapss number \state, maps ->
-        convert maps state
+        result = convert maps state
+        #dbg result
+        result
 
 expect
     m1 = {sourceStart: 98, destinationStart: 50, length: 2}
