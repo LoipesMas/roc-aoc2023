@@ -4,15 +4,15 @@ app "file-read"
         pf.Stdout,
         pf.Stderr,
         pf.Task.{ Task, await },
-        "./input" as input : Str,
-        #"./test_input" as input : Str,
+        #"./input" as input : Str,
+        "./test_input" as input : Str,
     ]
     provides [main] to pf
 
 main =
     lines = Str.split input "\n"
     task =
-        dbg part1 lines
+        dbg part2 lines
         Stdout.line "foo"
         #{} <- Stdout.line "part1:" |> Task.await
         #msg1 = part1 lines |> Result.map Num.toStr |> Result.withDefault "ERR"
@@ -46,6 +46,14 @@ part1 = \lines ->
     mappings = List.map mappingsStrs (\l -> List.map l parseMapping)
     List.map seeds (\s -> chainConvert mappings s) |> List.min
 
+part2 = \lines ->
+    sections = splitN lines Str.isEmpty |> List.dropIf List.isEmpty
+    seedsStr = List.get sections 0 |> unwrap |> List.get 0 |> unwrap
+    seedRanges = parseSeedRanges seedsStr
+    mappingsStrs = List.dropFirst sections 1 |> List.map (\l -> List.dropFirst l 1)
+    mappings = List.map mappingsStrs (\l -> List.map l parseMapping)
+    List.map seedRanges (\r -> mapRange r (\s -> chainConvert mappings s) |> List.min |> unwrap) |> List.min
+
 parseNumbers : Str -> List Nat
 parseNumbers = \numbersStr ->
     Str.split numbersStr " " |> List.dropIf Str.isEmpty |> List.mapTry Str.toNat |> unwrap
@@ -58,6 +66,32 @@ parseSeeds = \line ->
 expect
     r = parseSeeds "seeds: 79 14 55 13"
     r == [79,14,55,13]
+
+Range : {start: Nat, length: Nat}
+
+parseSeedRanges : Str -> List Range
+parseSeedRanges = \line ->
+    numbers = parseSeeds line
+    List.chunksOf numbers 2 |> List.walk [] \ranges, pair ->
+        when pair is
+            [start, length] -> List.append ranges {start, length}
+            l -> 
+                expect List.len l == 2
+                crash "oopsie"
+
+expect
+    r = parseSeedRanges "seeds: 79 14 55 13"
+    r == [{ length: 14, start: 79 }, { length: 13, start: 55 }]
+
+
+mapRange : Range, (Nat -> a) -> List a
+mapRange = \{start, length}, transform ->
+    List.range {start: At start, end: Length length} |> List.map transform
+
+expect
+    range = {start: 3, length: 2}
+    r = mapRange range \e -> e * 2
+    r == [6,8]
 
 Map : {sourceStart: Nat, destinationStart: Nat, length: Nat}
 
@@ -106,6 +140,25 @@ expect
 expect
     m = {sourceStart: 98, destinationStart: 50, length: 2}
     r = tryConvert m 100
+    r == Err NotMapped
+
+inverseTryConvert: Map, Nat -> Result Nat [NotMapped]
+inverseTryConvert = \{sourceStart, destinationStart, length}, number ->
+    tryConvert {sourceStart: destinationStart, destinationStart: sourceStart, length} number
+
+expect
+    m = {sourceStart: 98, destinationStart: 50, length: 2}
+    r = inverseTryConvert m 50
+    r == Ok 98
+
+expect
+    m = {sourceStart: 98, destinationStart: 50, length: 2}
+    r = inverseTryConvert m 51
+    r == Ok 99
+
+expect
+    m = {sourceStart: 98, destinationStart: 50, length: 2}
+    r = tryConvert m 52
     r == Err NotMapped
 
 
